@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equivalent Width</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* memperbagus tampilan dengan css */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-image: url('nebula.jpg');
+            background-size: cover;
+            background-position: center;;
+            color: #ffffff;
+        }
+        h1 {
+            text-align: center;
+            color: #cd1515;
+            -webkit-text-stroke: 2px rgb(255, 255, 255);
+            font-size: 60px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #plot {
+            margin-top: 30px;
+        }
+        .result {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #007bff;
+            
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <!-- membuat tabel untuk menerima input dari pihak luar -->
+    <h1>Lebar Ekivalen Spektrum</h1>
+    <div class="container">
+        <label for="minWavelength">Panjang Gelombang Minimum (angstorm):</label>
+        <input type="number" id="minWavelength" placeholder="panjang gelombang >= 3800" min="3800" max="7000">
+
+        <label for="maxWavelength">Panjang Gelombang Maksimum (angstorm):</label>
+        <input type="number" id="maxWavelength" placeholder="panjang gelombang <=7000" min="3800" max="7000">
+
+        <label for="numPoints">Jumlah Nilai Panjang Gelombang:</label>
+        <input type="number" id="numPoints" placeholder="contoh 10" min="2">
+
+        <label for="intensity">Data Intensitas (pisahkan dengan koma):</label>
+        <input type="text" id="intensity" placeholder="0.2, 0.5, 0.8, ... (nilai 0-1)">
+
+        <button onclick="generateGraph()">Tampilkan Grafik dan Hitung</button>
+    </div>
+    <div id="plot"></div>
+    <div class="result" id="result" style="display: none;">
+        <h3>Hasil Perhitungan:</h3>
+        <p id="equivalentWidth"></p>
+    </div>
+    <!-- memproses data yang telah dimasukkan pihak lain -->
+    <script>
+        function generateGraph() {
+            const minWavelength = parseFloat(document.getElementById("minWavelength").value);
+            const maxWavelength = parseFloat(document.getElementById("maxWavelength").value);
+            const numPoints = parseInt(document.getElementById("numPoints").value);
+            const intensityInput = document.getElementById("intensity").value;
+            // pengecekan apakah variabel yang dimasukkan adalah angka, panjang gelombang berada di panjang gelombang visual, 
+            // jumlah data intesitas = jumlah data panjang gelombang, nilai intensitas sesuai
+            if (isNaN(minWavelength) || isNaN(maxWavelength) || isNaN(numPoints)) {
+                alert("Harap masukkan panjang gelombang minimum, maksimum, dan jumlah nilai dengan benar.");
+                return;
+            }
+
+            if (minWavelength < 3800 || maxWavelength > 7000 || minWavelength >= maxWavelength) {
+                alert("Panjang gelombang harus dalam rentang 3800-7000 angstorm, dan minimum harus lebih kecil dari maksimum.");
+                return;
+            }
+
+            if (numPoints < 2) {
+                alert("Jumlah nilai panjang gelombang harus minimal 2.");
+                return;
+            }
+
+            const intensity = intensityInput.split(",").map(Number);
+            if (intensity.length !== numPoints) {
+                alert(`Jumlah data intensitas (${intensity.length}) harus sesuai dengan jumlah panjang gelombang (${numPoints}).`);
+                return;
+            }
+
+            if (intensity.some(val => isNaN(val) || val < 0 || val > 1)) {
+                alert("Semua nilai intensitas harus dalam rentang 0-1.");
+                return;
+            }
+            // proses pembuatan grafik
+            const wavelength = [];
+            const step = (maxWavelength - minWavelength) / (numPoints - 1);
+            for (let i = 0; i < numPoints; i++) {
+                wavelength.push(minWavelength + i * step);
+            }
+
+            // plot grafik
+            const curve = {
+                x: wavelength,
+                y: intensity,
+                mode: 'lines+markers',
+                line: { color: 'black', width: 2 },
+                name: 'Spektrum Bintang'
+            };
+
+            // proses pengolahan data 
+            const layout = {
+                title: 'Grafik Spektrum Bintang',
+                xaxis: { title: 'Panjang Gelombang (an)', range: [3800, 7000] },
+                yaxis: { title: 'Intensitas Relatif', range: [0, 1.2] },
+                plot_bgcolor: '#f9f9f9'
+            };
+
+            Plotly.newPlot('plot', [curve], layout);
+
+            // menampilkan hasil
+            const equivalentWidth = calculateEquivalentWidth(wavelength, intensity);
+            document.getElementById("result").style.display = "block";
+            document.getElementById("equivalentWidth").innerText = `Luas Ekivalen: ${equivalentWidth.toFixed(4)}`;
+        }
+        // integrasi metode trapezoidal
+        function calculateEquivalentWidth(wavelength, intensity) {
+            let area = 0;
+            for (let i = 0; i < wavelength.length - 1; i++) {
+                const deltaX = wavelength[i + 1] - wavelength[i];
+                const trapezoidArea = deltaX * ((intensity[i] + intensity[i + 1]) / 2);
+                area += trapezoidArea;
+            }
+            return area;
+        }
+    </script>
+</body>
+</html>
+
